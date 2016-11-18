@@ -643,6 +643,21 @@ static NSURL *_sharedTrashURL;
     } withPriority:PINOperationQueuePriorityLow];
 }
 
+- (void)setFile:(NSURL *)url forKey:(NSString *)key block:(PINDiskCacheFileURLBlock)block
+{
+    __weak PINDiskCache *weakSelf = self;
+    
+    [self.operationQueue addOperation:^{
+        PINDiskCache *strongSelf = weakSelf;
+        NSURL *fileURL = nil;
+        [strongSelf setFile:url forKey:key fileURL:&fileURL];
+        
+        if (block) {
+            block(key, fileURL);
+        }
+    } withPriority:PINOperationQueuePriorityLow];
+}
+
 - (void)removeObjectForKey:(NSString *)key block:(PINDiskCacheObjectBlock)block
 {
     __weak PINDiskCache *weakSelf = self;
@@ -918,6 +933,58 @@ static NSURL *_sharedTrashURL;
                 didAddObjectBlock(self, key, object);
             [self lock];
         }
+    [self unlock];
+    
+    if (outFileURL) {
+        *outFileURL = fileURL;
+    }
+}
+
+- (void)setFile:(NSURL *)url forKey:(NSString *)key
+{
+    [self setFile:url forKey:key fileURL:nil];
+}
+
+- (void)setFile:(NSURL *)url forKey:(NSString *)key fileURL:(NSURL **)outFileURL {
+    if (!key || !url)
+        return;
+    
+    NSURL *fileURL = [self encodedFileURLForKey:key];
+    
+    [self lock];
+        /* Put code for willAddObjectBlock? here */
+        
+        NSError *moveError = nil;
+        
+        BOOL moved = [[NSFileManager defaultManager] moveItemAtURL:url toURL:fileURL error:&moveError];
+        PINDiskCacheError(moveError);
+        
+        if (moved) {
+            NSError *error = nil;
+            NSDictionary *values = [fileURL resourceValuesForKeys:@[ NSURLContentModificationDateKey, NSURLTotalFileAllocatedSizeKey ] error:&error];
+            PINDiskCacheError(error);
+            
+            NSNumber *diskFileSize = [values objectForKey:NSURLTotalFileAllocatedSizeKey];
+            if (diskFileSize) {
+                NSNumber *prevDiskFileSize = [self->_sizes objectForKey:key];
+                if (prevDiskFileSize) {
+                    self.byteCount = self->_byteCount - [prevDiskFileSize unsignedIntegerValue];
+                }
+                [self->_sizes setObject:diskFileSize forKey:key];
+                self.byteCount = self->_byteCount + [diskFileSize unsignedIntegerValue]; // atomic
+            }
+            NSDate *date = [values objectForKey:NSURLContentModificationDateKey];
+            if (date) {
+                [self->_dates setObject:date forKey:key];
+            }
+            
+            if (self->_byteLimit > 0 && self->_byteCount > self->_byteLimit)
+                [self trimToSizeByDate:self->_byteLimit block:nil];
+        } else {
+            fileURL = nil;
+        }
+        
+        /* Put code for didAddObjectBlock? here */
     [self unlock];
     
     if (outFileURL) {

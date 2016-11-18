@@ -326,6 +326,8 @@ typedef id<NSCoding> __nonnull(^PINDiskCacheDeserializerBlock)(NSData* data, NSS
  */
 - (void)setObject:(id <NSCoding>)object forKey:(NSString *)key block:(nullable PINDiskCacheObjectBlock)block;
 
+- (void)setFile:(NSURL *)url forKey:(NSString *)key block:(nullable PINDiskCacheFileURLBlock)block;
+
 /**
  Removes the object for the specified key. This method returns immediately and executes the passed block
  as soon as the object has been removed.
@@ -439,6 +441,8 @@ typedef id<NSCoding> __nonnull(^PINDiskCacheDeserializerBlock)(NSData* data, NSS
  @param key A key to associate with the object. This string will be copied.
  */
 - (void)setObject:(id <NSCoding>)object forKey:(NSString *)key;
+
+- (void)setFile:(NSURL *)url forKey:(NSString *)key;
 
 /**
  Removes the object for the specified key. This method blocks the calling thread until the object
