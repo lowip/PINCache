@@ -50,6 +50,7 @@ static PINOperationDataCoallescingBlock PINDiskTrimmingDateCoallescingBlock = ^i
 @property (strong, nonatomic) PINOperationQueue *operationQueue;
 @property (strong, nonatomic) NSMutableDictionary *dates;
 @property (strong, nonatomic) NSMutableDictionary *sizes;
+@property (strong, nonatomic) NSMutableSet *locked;
 @end
 
 @implementation PINDiskCache
@@ -131,6 +132,7 @@ static NSURL *_sharedTrashURL;
         
         _dates = [[NSMutableDictionary alloc] init];
         _sizes = [[NSMutableDictionary alloc] init];
+        _locked = [[NSMutableSet alloc] init];
         
         NSString *pathComponent = [[NSString alloc] initWithFormat:@"%@.%@", PINDiskCachePrefix, _name];
         _cacheURL = [NSURL fileURLWithPathComponents:@[ rootPath, pathComponent ]];
@@ -440,6 +442,12 @@ static NSURL *_sharedTrashURL;
     NSURL *fileURL = [self encodedFileURLForKey:key];
     
     [self lock];
+        // Check if the key is locked
+        if ([_locked containsObject:key]) {
+            [self unlock];
+            return NO;
+        }
+    
         if (!fileURL || ![[NSFileManager defaultManager] fileExistsAtPath:[fileURL path]]) {
             [self unlock];
             return NO;
@@ -466,6 +474,7 @@ static NSURL *_sharedTrashURL;
         
         [_sizes removeObjectForKey:key];
         [_dates removeObjectForKey:key];
+        [_locked removeObject:key];
     
         PINDiskCacheObjectBlock didRemoveObjectBlock = _didRemoveObjectBlock;
         if (didRemoveObjectBlock) {
@@ -582,6 +591,18 @@ static NSURL *_sharedTrashURL;
             [strongSelf unlock];
         }
     } withPriority:PINOperationQueuePriorityLow];
+}
+
+- (void)lockFileWithKey:(NSString *)key {
+    [self lock];
+        [_locked addObject:key];
+    [self unlock];
+}
+
+- (void)unlockFileWithKey:(NSString *)key {
+    [self lock];
+        [_locked removeObject:key];
+    [self unlock];
 }
 
 - (void)containsObjectForKey:(NSString *)key block:(PINDiskCacheContainsBlock)block

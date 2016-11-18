@@ -279,6 +279,10 @@ typedef id<NSCoding> __nonnull(^PINDiskCacheDeserializerBlock)(NSData* data, NSS
  */
 - (void)lockFileAccessWhileExecutingBlock:(nullable PINDiskCacheBlock)block;
 
+- (void)lockFileWithKey:(NSString *)key;
+
+- (void)unlockFileWithKey:(NSString *)key;
+
 /**
  This method determines whether an object is present for the given key in the cache. This method returns immediately
  and executes the passed block after the object is available, potentially in parallel with other blocks on the
